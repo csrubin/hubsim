@@ -4,18 +4,23 @@ The Hub class is used to encapsulate all hub operations into a simulation enviro
 
 import inspect
 import random
+import types
 from dataclasses import dataclass
 from inspect import currentframe
-from typing import Any, Callable, Generator, Iterable, Optional, Union, overload
+from typing import Any, Callable, Generator, Iterable, Optional, Union, cast, overload
 
 import lea
 import plotly.express as px
 import plotly.graph_objs as go
 import rich.style
 import simpy
-from config import HubResourceBase, HubEnvironment, Config, DataMonitor
+from config import Config, DataMonitor, HubEnvironment, HubResourceBase
 from rich.console import Console
 from rich.table import Table
+
+# For mypy
+# https://stackoverflow.com/questions/251464/how-to-get-a-function-name-as-a-string
+get_caller = cast(types.FrameType, inspect.currentframe()).f_code.co_name
 
 console = Console()
 
@@ -119,9 +124,10 @@ class Hub(object):
         Returns: Generator object for parallel pick_pack process model
 
         """
-        sprint_start(str(self.env.now), str(currentframe().f_code.co_name), str(order))
+
+        sprint_start(str(self.env.now), str(get_caller), str(order))
         yield self.env.timeout(random.randint(*self.config.PICK_PACK_INTERVAL_MIN))
-        sprint_stop(str(self.env.now), str(currentframe().f_code.co_name), str(order))
+        sprint_stop(str(self.env.now), str(get_caller), str(order))
 
     def mission(
         self, order: int, poisson: Union[bool, int, float] = False
@@ -136,9 +142,9 @@ class Hub(object):
         Returns: Generator object for parallel mission process model
 
         """
-        sprint_start(str(self.env.now), str(currentframe().f_code.co_name), str(order))
+        sprint_start(str(self.env.now), str(get_caller), str(order))
         yield self.env.timeout(random.randint(*self.config.MISSION_INTERVAL_MIN))
-        sprint_stop(str(self.env.now), str(currentframe().f_code.co_name), str(order))
+        sprint_stop(str(self.env.now), str(get_caller), str(order))
 
     def prep_drone(
         self, order: int, poisson: Union[bool, int, float] = False

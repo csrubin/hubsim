@@ -166,7 +166,7 @@ python-versions = ">=3.7"
 
 [[package]]
 name = "mypy"
-version = "1.0.0"
+version = "1.0.1"
 description = "Optional static typing for Python"
 category = "main"
 optional = false
