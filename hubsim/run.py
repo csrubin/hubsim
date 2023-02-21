@@ -1,16 +1,14 @@
 """
-
+Entrypoint for running simulations and/or streamlit app
 """
-import random
 import statistics
 
 import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objs as go
-import simpy
 import streamlit as st
-from config import Config, DataMonitor, HubEnvironment
-from hub import Hub
+from config import Config, DataMonitor
+from hub import Hub, HubEnvironment
 
 
 def main():

@@ -11,7 +11,6 @@ from enum import IntEnum
 from typing import Optional
 
 import lea
-import simpy
 
 
 class Config(object):
@@ -92,24 +91,3 @@ class DataMonitor:
 @dataclass
 class Color:
     pass
-
-
-class HubEnvironment(simpy.Environment):
-    def __init__(self, config: Config, monitor: DataMonitor):
-        super().__init__()
-        self.config = config
-        self.monitor = monitor
-
-    # @st.cache_data
-    # def run(
-    #     self, until: Optional[Union[SimTime, Event]] = None
-    # ) -> Optional[Any]:
-    #     return super().run(until)
-
-
-class HubResourceBase(simpy.Resource):
-    def __init__(self, env: HubEnvironment, capacity: Optional[int] = None):
-        super().__init__(env, capacity)
-        self.env = env
-        self.monitor = env.monitor
-        self.config = env.config

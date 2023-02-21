@@ -3,60 +3,32 @@ The Hub class is used to encapsulate all hub operations into a simulation enviro
 """
 
 import random
-from typing import Any, Generator, Optional
+from typing import Any, Generator
 
-from config import (
-    Config,
-    DataMonitor,
-    HubEnvironment,
-    HubResourceBase,
-    Order,
-    OrderStatus,
-)
-from simpy import Timeout
+from config import Config, DataMonitor, Order, OrderStatus
+from hub_resources import DeliverySpecialist, Drone, Pilot, SimpleBattery, VerticalLift
+from simpy import Environment, Timeout
 
 
-class VerticalLift(HubResourceBase):
-    def __init__(self, env: HubEnvironment, num_lifts: Optional[int] = None):
-        if num_lifts:
-            super().__init__(env, capacity=num_lifts)
-        else:
-            super().__init__(env, env.config.NUM_LIFTS)
+class HubEnvironment(Environment):
+    """Subclass of simpy.Environment for adding configuration and monitoring utilities"""
 
+    def __init__(self, config: Config, monitor: DataMonitor):
+        super().__init__()
+        self.config = config
+        self.monitor = monitor
 
-class Pilot(HubResourceBase):
-    def __init__(self, env: HubEnvironment, num_pilots: Optional[int] = None):
-        if num_pilots:
-            super().__init__(env, capacity=num_pilots)
-        else:
-            super().__init__(env, env.config.NUM_LIFTS)
-
-
-class SimpleBattery(HubResourceBase):
-    def __init__(self, env: HubEnvironment, num_batteries: Optional[int] = None):
-        if num_batteries:
-            super().__init__(env, capacity=num_batteries)
-        else:
-            super().__init__(env, env.config.NUM_BATTERIES)
-
-
-class DeliverySpecialist(HubResourceBase):
-    def __init__(self, env: HubEnvironment, num_delivery_specialists: Optional[int] = None):
-        if num_delivery_specialists:
-            super().__init__(env, capacity=num_delivery_specialists)
-        else:
-            super().__init__(env, env.config.NUM_DELIVERY_SPECIALISTS)
-
-
-class Drone(HubResourceBase):
-    def __init__(self, env: HubEnvironment, num_drones: Optional[int] = None):
-        if num_drones:
-            super().__init__(env, capacity=num_drones)
-        else:
-            super().__init__(env, env.config.NUM_DRONES)
+    # TODO figure out caching
+    # @st.cache_data
+    # def run(
+    #     self, until: Optional[Union[SimTime, Event]] = None
+    # ) -> Optional[Any]:
+    #     return super().run(until)
 
 
 class Hub(object):
+    """A DroneUp Hub environment for simulating processes and operations that occur at delivery hubs"""
+
     def __init__(self, env: HubEnvironment) -> None:
         self.env = env
         self.config = env.config
@@ -79,7 +51,7 @@ class Hub(object):
     # Hub Processes
     def pick_pack(self, order: Order) -> Generator[Timeout, Any, Any]:
         """
-        Execute picking and packaging. Will be obsolete eventually.
+        Execute picking and packaging. Will be obsolete eventually when WM takes over this portion of our workflow.
 
         Args:
             order: Order object for monitoring entity flow as created by create_orders()
@@ -94,11 +66,11 @@ class Hub(object):
 
     def flight(self, order: Order) -> Generator[Timeout, Any, Any]:
         """
-
+        Execute flight plan. Assumes all conditions for flight have been met.
         Args:
             order: Order object for monitoring entity flow as created by create_orders()
 
-        Returns: Generator object for parallel mission process model
+        Returns: Generator object for parallel flight process model
 
         """
         order.flight_start_time = self.env.now
@@ -108,11 +80,13 @@ class Hub(object):
 
     def prep_drone(self, order: Order) -> Generator[Timeout, Any, Any]:
         """
-        TODO
+        Execute drone preparation activities. Can be used as an abstraction for all processes related to hardware
+        preparation (therefore not pickpacking).
+        TODO: Currently unused
         Args:
             order: Order object for monitoring entity flow as created by create_orders()
 
-        Returns:
+        Returns: Generator object for parallel drone preparation process model
 
         """
         order.prep_start_time = self.env.now
@@ -122,7 +96,8 @@ class Hub(object):
 
     def deliver_order(self, order: Order) -> Generator[Timeout, Any, Any]:
         """
-        Execute delivery process given that an order has been created
+        Execute delivery process given that an order has been created. This is the main process of interest, and
+        has a defined start and end.
         TODO: figure out parallelism here--will have to rework order status/queueing time handline
         Args:
             order: Order object for monitoring entity flow as created by create_orders()
@@ -134,7 +109,7 @@ class Hub(object):
         order.status = OrderStatus.STARTED
 
         # Request delivery specialist, suspend function until available
-        with self.delivery_specialist.request() as req:
+        with self.delivery_specialist.request() as req:  # TODO: create pool of employee resources
             pickpack_req_time = self.env.now
             order.status = OrderStatus.PREP_QUEUE
             yield req
@@ -196,17 +171,4 @@ class Hub(object):
 
 
 if __name__ == "__main__":
-    config = Config()
-    monitor = DataMonitor()
-
-    # Change config
-    config.NUM_DRONES = 25
-    config.NUM_PILOTS = 25
-    config.NUM_DELIVERY_SPECIALISTS = 25
-    config.PICK_PACK_INTERVAL_MIN = (1, 2)
-    config.ORDER_INTERVAL_MIN = (1, 2)
-
-    hub_env = HubEnvironment(config, monitor)
-    hub = Hub(hub_env)
-    until = 12 * 60
-    hub.env.run(until=until)  # one day
+    raise RuntimeError("Do not run hub.py as a script.")

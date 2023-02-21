@@ -16,6 +16,8 @@ import plotly.graph_objs as go
 import simpy
 from config import *
 
+# TODO: Define resourcepool class? Defines resources with overlapping capabilities
+
 
 class HubEmployee:
     pass
