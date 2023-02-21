@@ -28,9 +28,7 @@ class Battery(HubResourceBase):
         self, env: HubEnvironment, _id: int
     ):  # TODO: does it need an id attribute? Replace idx args in processes?
         super().__init__(env, capacity=1)
-        self.charged = bool(
-            random.randint(0, 1)
-        )  # Randomly spawn batteries that are charged and discharged
+        self.charged = bool(random.randint(0, 1))  # Randomly spawn batteries that are charged and discharged
         self.stowed = True
         self._id = _id
 
@@ -86,12 +84,8 @@ class Battery(HubResourceBase):
 
         Returns: Generator object for storing battery
         """
-        assert (
-            not self.stowed
-        )  # Fail if attempt to store a battery that is already stored
-        yield self.env.timeout(
-            0
-        )  # Storage happens immediately TODO: should this take time?
+        assert not self.stowed  # Fail if attempt to store a battery that is already stored
+        yield self.env.timeout(0)  # Storage happens immediately TODO: should this take time?
         self.stowed = True
 
 
@@ -155,7 +149,6 @@ class BatteryStore(simpy.FilterStore):
             rand = random.randint(1, 5)
             yield self.env.timeout(rand)
             for idx, b in enumerate(self.items):
-
                 if b.charged is True:
                     self.env.process(b.discharge(idx))
                     print(f"Start discharging Battery {idx} at {self.env.now}")

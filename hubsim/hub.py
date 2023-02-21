@@ -2,52 +2,18 @@
 The Hub class is used to encapsulate all hub operations into a simulation environment
 """
 
-import inspect
 import random
-import types
-from dataclasses import dataclass
-from inspect import currentframe
-from typing import Any, Callable, Generator, Iterable, Optional, Union, cast, overload
+from typing import Any, Generator, Optional
 
-import lea
-import plotly.express as px
-import plotly.graph_objs as go
-import rich.style
-import simpy
-from config import Config, DataMonitor, HubEnvironment, HubResourceBase
-from rich.console import Console
-from rich.table import Table
-
-# For mypy
-# https://stackoverflow.com/questions/251464/how-to-get-a-function-name-as-a-string
-get_caller = cast(types.FrameType, inspect.currentframe()).f_code.co_name
-
-console = Console()
-
-table = Table(show_header=True, header_style="bold")
-table.add_column("Time")
-table.add_column("Start/Stop")
-table.add_column("Process")
-table.add_column("Order")
-
-
-# Utils
-def simple_print(
-    time: str,
-    start_stop: str,
-    process: str,
-    order: str,
-    style: Optional[rich.style.StyleType] = None,
-) -> None:
-    table.add_row(time, start_stop, process, order, style=style)
-
-
-def sprint_start(time: str, process: str, order: str) -> None:
-    simple_print(time, "[green]START[/green]", process, order)
-
-
-def sprint_stop(time: str, process: str, order: str) -> None:
-    simple_print(time, "[red]STOP[/red]", process, order)
+from config import (
+    Config,
+    DataMonitor,
+    HubEnvironment,
+    HubResourceBase,
+    Order,
+    OrderStatus,
+)
+from simpy import Timeout
 
 
 class VerticalLift(HubResourceBase):
@@ -75,9 +41,7 @@ class SimpleBattery(HubResourceBase):
 
 
 class DeliverySpecialist(HubResourceBase):
-    def __init__(
-        self, env: HubEnvironment, num_delivery_specialists: Optional[int] = None
-    ):
+    def __init__(self, env: HubEnvironment, num_delivery_specialists: Optional[int] = None):
         if num_delivery_specialists:
             super().__init__(env, capacity=num_delivery_specialists)
         else:
@@ -96,6 +60,7 @@ class Hub(object):
     def __init__(self, env: HubEnvironment) -> None:
         self.env = env
         self.config = env.config
+        self.monitor = env.monitor
 
         # Hub Resources
         # TODO: Resource Stores? containers?
@@ -106,99 +71,128 @@ class Hub(object):
         self.battery = SimpleBattery(env)
 
         # Order creation loop
-        self.env.process(
-            self.run_sim()
-        )  # Schedule process to run simulation at instantiation of hub
+        self.env.process(self.create_orders())  # Schedule process to run simulation at instantiation of hub
+
+        if self.config.RANDOM is False:
+            random.seed(42)
 
     # Hub Processes
-    def pick_pack(
-        self, order: int, poisson: Union[bool, int, float] = False
-    ) -> Generator[simpy.events.Timeout, Any, Any]:
+    def pick_pack(self, order: Order) -> Generator[Timeout, Any, Any]:
         """
         Execute picking and packaging. Will be obsolete eventually.
+
         Args:
-            order: Order counter for print and debug
-            poisson: TODO: If True, use poisson model from config. If numerical, override config poisson model. If False,
-                default to random interval from config
+            order: Order object for monitoring entity flow as created by create_orders()
 
         Returns: Generator object for parallel pick_pack process model
 
         """
-
-        sprint_start(str(self.env.now), str(get_caller), str(order))
+        order.pickpack_start_time = self.env.now
+        order.status = OrderStatus.PREP  # TODO: Bug??? new status?
         yield self.env.timeout(random.randint(*self.config.PICK_PACK_INTERVAL_MIN))
-        sprint_stop(str(self.env.now), str(get_caller), str(order))
+        order.pickpack_duration = self.env.now - order.pickpack_start_time
 
-    def mission(
-        self, order: int, poisson: Union[bool, int, float] = False
-    ) -> Generator[simpy.events.Timeout, Any, Any]:
+    def flight(self, order: Order) -> Generator[Timeout, Any, Any]:
         """
 
         Args:
-            order: Order counter for print and debug
-            poisson:
-
+            order: Order object for monitoring entity flow as created by create_orders()
 
         Returns: Generator object for parallel mission process model
 
         """
-        sprint_start(str(self.env.now), str(get_caller), str(order))
-        yield self.env.timeout(random.randint(*self.config.MISSION_INTERVAL_MIN))
-        sprint_stop(str(self.env.now), str(get_caller), str(order))
+        order.flight_start_time = self.env.now
+        order.status = OrderStatus.FLIGHT
+        yield self.env.timeout(random.randint(*self.config.FLIGHT_INTERVAL_MIN))
+        order.flight_duration = self.env.now - order.flight_start_time
 
-    def prep_drone(
-        self, order: int, poisson: Union[bool, int, float] = False
-    ) -> Generator[simpy.events.Timeout, Any, Any]:
+    def prep_drone(self, order: Order) -> Generator[Timeout, Any, Any]:
+        """
+        TODO
+        Args:
+            order: Order object for monitoring entity flow as created by create_orders()
+
+        Returns:
+
+        """
+        order.prep_start_time = self.env.now
+        order.status = OrderStatus.PREP
         yield self.env.timeout(random.randint(*self.config.PREP_DRONE_INTERVAL_MIN))
+        order.prep_duration = self.env.now - order.prep_start_time
 
-    def takeoff(
-        self, order: int, poisson: Union[bool, int, float] = False
-    ) -> Generator[simpy.events.Timeout, Any, Any]:
-        yield self.env.timeout(random.randint(*self.config.TAKEOFF_INTERVAL_MIN))
+    def deliver_order(self, order: Order) -> Generator[Timeout, Any, Any]:
+        """
+        Execute delivery process given that an order has been created
+        TODO: figure out parallelism here--will have to rework order status/queueing time handline
+        Args:
+            order: Order object for monitoring entity flow as created by create_orders()
 
-    def landing(
-        self, order: int, poisson: Union[bool, int, float] = False
-    ) -> Generator[simpy.events.Timeout, Any, Any]:
-        yield self.env.timeout(random.randint(*self.config.LANDING_INTERVAL_MIN))
+        Returns: Generator for handling top-level process flow
+        """
 
-    def swap_batteries(
-        self, order: int, poisson: Union[bool, int, float] = False
-    ) -> Generator[simpy.events.Timeout, Any, Any]:
-        yield self.env.timeout(random.randint(*self.config.SWAP_BATTERIES_MIN))
+        order.start_time = self.env.now
+        order.status = OrderStatus.STARTED
 
-    def charge_batteries(
-        self, order: int, poisson: Union[bool, int, float] = False
-    ) -> Generator[simpy.events.Timeout, Any, Any]:
-        yield self.env.timeout(random.randint(*self.config.CHARGE_BATTERIES_MIN))
+        # Request delivery specialist, suspend function until available
+        with self.delivery_specialist.request() as req:
+            pickpack_req_time = self.env.now
+            order.status = OrderStatus.PREP_QUEUE
+            yield req
+            order.pickpack_queue_duration = self.env.now - pickpack_req_time
 
-    def deliver_order(self, order: int) -> Generator[simpy.events.Timeout, Any, Any]:
-        arrival = self.env.now
-        # with self.delivery_specialist.request() as req:
-        #     yield req
-        #     yield self.env.process(self.pick_pack(order))
-        #
-        # with self.drone.request() as req:
-        #     yield req
-        #     yield self.env.process(self.mission(order))
+            # Pickpack order
+            yield self.env.process(self.pick_pack(order))
 
-        with self.delivery_specialist.request() as dsreq, self.drone.request() as dreq:
-            yield self.env.all_of([dsreq, dreq])
-            yield self.env.all_of(
-                [
-                    self.env.process(self.pick_pack(order)),
-                    self.env.process(self.mission(order)),
-                ]
-            )
+        # Request drone, pilot, and battery, suspend function until ALL are available
+        with self.drone.request() as drone_req, self.pilot.request() as pilot_req, self.battery.request() as batt_req:
+            prep_req_time = self.env.now
+            order.status = OrderStatus.FLIGHT_QUEUE
+            yield self.env.all_of([drone_req, pilot_req, batt_req])
+            order.flight_queue_duration = self.env.now - prep_req_time
 
-        self.env.monitor.wait_times.append(self.env.now - arrival)
+            # Fly order
+            yield self.env.process(self.flight(order))
 
-    def run_sim(self):
-        order = 0
+        # with self.delivery_specialist.request() as dsreq, self.drone.request() as dreq:
+        #     yield self.env.all_of([dsreq, dreq])
+        #     yield self.env.all_of(
+        #         [
+        #             self.env.process(self.pick_pack(order)),
+        #             self.env.process(self.mission(order)),
+        #         ]
+        #     )
+
+        # End of delivery monitoring
+        order.completion_time = self.env.now
+        order.status = OrderStatus.COMPLETED
+        order.total_duration = order.completion_time - order.creation_time
+
+        self.env.monitor.wait_times.append(order.total_duration)
+        self.env.monitor.delivery_times.append(order.completion_time)
+        self.env.monitor.orders_delivered += 1
+
+    def create_orders(self) -> Generator[Timeout, Any, Any]:
+        """
+        Infinite creation-loop for introducing orders into the system.
+        TODO: add option to set specific # of deliveries
+
+        Returns: Generator for waiting time between order creation
+        """
+
+        order_id = 0
         while True:  # Run until time-limit or event occurs: env.run(until=12*60)
-            rand = random.randint(*self.env.config.TIME_BETWEEN_ORDERS_INTERVAL_MIN)
-            yield self.env.timeout(rand)
+            # Wait some time between orders
+            yield self.env.timeout(*self.env.config.ORDER_INTERVAL_MIN)
+
+            # Create new order object, save object and relevant info
+            order = Order(order_id)
+            order.creation_time = self.env.now
+            order.status = OrderStatus.CREATED
+            self.monitor.orders.append(order)
+
+            # Queue order for delivery
             self.env.process(self.deliver_order(order))
-            order += 1
+            order_id += 1
 
 
 if __name__ == "__main__":
@@ -210,12 +204,9 @@ if __name__ == "__main__":
     config.NUM_PILOTS = 25
     config.NUM_DELIVERY_SPECIALISTS = 25
     config.PICK_PACK_INTERVAL_MIN = (1, 2)
-    config.TIME_BETWEEN_ORDERS_INTERVAL_MIN = (1, 2)
+    config.ORDER_INTERVAL_MIN = (1, 2)
 
-    env = HubEnvironment(config, monitor)
-    hub = Hub(env)
+    hub_env = HubEnvironment(config, monitor)
+    hub = Hub(hub_env)
     until = 12 * 60
     hub.env.run(until=until)  # one day
-
-    print(hub.env.monitor.wait_times)
-    console.print(table)
