@@ -12,7 +12,8 @@ import lea
 import plotly.express as px
 import plotly.graph_objs as go
 import simpy
-from config import Config, DataMonitor, HubEnvironment, HubResourceBase
+from config import Config, DataMonitor
+from hub_resources import HubEnvironment, HubResourceBase
 
 
 class Battery(HubResourceBase):

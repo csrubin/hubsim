@@ -1,11 +1,27 @@
 """
 Helper classes for clearly defining hub resources
+TODO: rename file?
 """
 from typing import Optional
 
 import simpy
+from config import Config, DataMonitor
 
-from hubsim.hub import HubEnvironment
+
+class HubEnvironment(simpy.Environment):
+    """Subclass of simpy.Environment for adding configuration and monitoring utilities"""
+
+    def __init__(self, config: Config, monitor: DataMonitor):
+        super().__init__()
+        self.config = config
+        self.monitor = monitor
+
+    # TODO figure out caching
+    # @st.cache_data
+    # def run(
+    #     self, until: Optional[Union[SimTime, Event]] = None
+    # ) -> Optional[Any]:
+    #     return super().run(until)
 
 
 class HubResourceBase(simpy.Resource):

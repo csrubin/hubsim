@@ -5,25 +5,16 @@ The Hub class is used to encapsulate all hub operations into a simulation enviro
 import random
 from typing import Any, Generator
 
-from config import Config, DataMonitor, Order, OrderStatus
-from hub_resources import DeliverySpecialist, Drone, Pilot, SimpleBattery, VerticalLift
-from simpy import Environment, Timeout
-
-
-class HubEnvironment(Environment):
-    """Subclass of simpy.Environment for adding configuration and monitoring utilities"""
-
-    def __init__(self, config: Config, monitor: DataMonitor):
-        super().__init__()
-        self.config = config
-        self.monitor = monitor
-
-    # TODO figure out caching
-    # @st.cache_data
-    # def run(
-    #     self, until: Optional[Union[SimTime, Event]] = None
-    # ) -> Optional[Any]:
-    #     return super().run(until)
+from config import Order, OrderStatus
+from hub_resources import (
+    DeliverySpecialist,
+    Drone,
+    HubEnvironment,
+    Pilot,
+    SimpleBattery,
+    VerticalLift,
+)
+from simpy import Timeout
 
 
 class Hub(object):
