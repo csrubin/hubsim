@@ -3,7 +3,6 @@ Entrypoint for running simulations and/or streamlit app
 """
 import statistics
 
-import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objs as go
 import streamlit as st
@@ -21,6 +20,10 @@ def main():
         menu_items={},
     )
 
+    st.image("hubsim/assets/Black_Orange_Wordmark_Lockup_DroneUp_sm.png", width=400)
+    st.title("Hub Simulation")
+    st.markdown("---")
+
     def check_password():
         """Returns `True` if the user had a correct password."""
 
@@ -36,27 +39,28 @@ def main():
             else:
                 st.session_state["password_correct"] = False
 
+        _, signin_col, _ = st.columns([1, 3, 1])
+
         if "password_correct" not in st.session_state:
             # First run, show inputs for username + password.
-            st.text_input("Username", on_change=password_entered, key="username")
-            st.text_input("Password", type="password", on_change=password_entered, key="password")
-            return False
+            with signin_col:
+                st.text_input("Username", key="username")
+                st.text_input("Password", type="password", on_change=password_entered, key="password")
+                return False
         elif not st.session_state["password_correct"]:
             # Password not correct, show input + error.
-            st.text_input("Username", on_change=password_entered, key="username")
-            st.text_input("Password", type="password", on_change=password_entered, key="password")
-            st.error("😕 User not known or password incorrect")
-            return False
+            with signin_col:
+                st.text_input("Username", key="username")
+                st.text_input("Password", type="password", on_change=password_entered, key="password")
+                st.error("Username or password is incorrect.")
+                return False
         else:
             # Password correct.
             return True
 
     if check_password():
-        st.title("Hub Simulation")
-        st.markdown("---")
 
         with st.sidebar:
-            st.image("hubsim/assets/Black_Orange_Wordmark_Lockup_DroneUp_sm.png")
             st.header("Configuration")
             st.markdown("---")
 
@@ -87,13 +91,11 @@ def main():
                 config.NUM_BATTERIES = st.number_input("Batteries:", value=config.NUM_BATTERIES, min_value=1)
 
             st.subheader("Time Intervals (minutes)")
-            config.PICK_PACK_INTERVAL_MIN = st.slider(
-                "Pick-Packing:", value=config.PICK_PACK_INTERVAL_MIN, max_value=60
+            config.PICK_PACK_INTERVAL = st.slider("Pick-Packing:", value=config.PICK_PACK_INTERVAL, max_value=60)
+            config.ORDER_CREATION_INTERVAL = st.slider(
+                "Time Between Orders:", value=config.ORDER_CREATION_INTERVAL, max_value=60 * 4
             )
-            config.ORDER_INTERVAL_MIN = st.slider(
-                "Time Between Orders:", value=config.ORDER_INTERVAL_MIN, max_value=60 * 4
-            )
-            config.FLIGHT_INTERVAL_MIN = st.slider("Mission Duration:", value=config.FLIGHT_INTERVAL_MIN, max_value=20)
+            config.FLIGHT_INTERVAL = st.slider("Mission Duration:", value=config.FLIGHT_INTERVAL, max_value=20)
 
             # TODO: Export data, export plots
 
@@ -120,6 +122,8 @@ def main():
             " However, it may be over-resourced. </p>",
             unsafe_allow_html=True,
         )
+
+        # TODO: many runs, optimizers
 
 
 if __name__ == "__main__":

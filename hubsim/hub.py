@@ -1,23 +1,18 @@
 """
-The Hub class is used to encapsulate all hub operations into a simulation environment
+The Hub class is the critical block used to encapsulate all hub operations for simpy simulations
 """
 
 import random
 from typing import Any, Generator
 
+from batteries import BatteryStore
 from config import Order, OrderStatus
-from hub_resources import (
-    DeliverySpecialist,
-    Drone,
-    HubEnvironment,
-    Pilot,
-    SimpleBattery,
-    VerticalLift,
-)
+from employees import DeliverySpecialist, Pilot
+from hub_resources import Drone, HubEnvironment, SimpleBattery, VerticalLift
 from simpy import Timeout
 
 
-class Hub(object):
+class Hub:
     """A DroneUp Hub environment for simulating processes and operations that occur at delivery hubs"""
 
     def __init__(self, env: HubEnvironment) -> None:
@@ -26,12 +21,12 @@ class Hub(object):
         self.monitor = env.monitor
 
         # Hub Resources
-        # TODO: Resource Stores? containers?
         self.vertical_lift = VerticalLift(env)
         self.pilot = Pilot(env)
         self.delivery_specialist = DeliverySpecialist(env)
         self.drone = Drone(env)
         self.battery = SimpleBattery(env)
+        self.battery_store = BatteryStore(env)
 
         # Order creation loop
         self.env.process(self.create_orders())  # Schedule process to run simulation at instantiation of hub
@@ -52,7 +47,7 @@ class Hub(object):
         """
         order.pickpack_start_time = self.env.now
         order.status = OrderStatus.PREP  # TODO: Bug??? new status?
-        yield self.env.timeout(random.randint(*self.config.PICK_PACK_INTERVAL_MIN))
+        yield self.env.timeout(random.randint(*self.config.PICK_PACK_INTERVAL))
         order.pickpack_duration = self.env.now - order.pickpack_start_time
 
     def flight(self, order: Order) -> Generator[Timeout, Any, Any]:
@@ -66,7 +61,7 @@ class Hub(object):
         """
         order.flight_start_time = self.env.now
         order.status = OrderStatus.FLIGHT
-        yield self.env.timeout(random.randint(*self.config.FLIGHT_INTERVAL_MIN))
+        yield self.env.timeout(random.randint(*self.config.FLIGHT_INTERVAL))
         order.flight_duration = self.env.now - order.flight_start_time
 
     def prep_drone(self, order: Order) -> Generator[Timeout, Any, Any]:
@@ -82,7 +77,7 @@ class Hub(object):
         """
         order.prep_start_time = self.env.now
         order.status = OrderStatus.PREP
-        yield self.env.timeout(random.randint(*self.config.PREP_DRONE_INTERVAL_MIN))
+        yield self.env.timeout(random.randint(*self.config.PREP_DRONE_INTERVAL))
         order.prep_duration = self.env.now - order.prep_start_time
 
     def deliver_order(self, order: Order) -> Generator[Timeout, Any, Any]:
@@ -142,13 +137,15 @@ class Hub(object):
         Infinite creation-loop for introducing orders into the system.
         TODO: add option to set specific # of deliveries
 
+        TODO: not just order creation, running all processes (checking batteries)
+
         Returns: Generator for waiting time between order creation
         """
 
         order_id = 0
         while True:  # Run until time-limit or event occurs: env.run(until=12*60)
             # Wait some time between orders
-            yield self.env.timeout(*self.env.config.ORDER_INTERVAL_MIN)
+            yield self.env.timeout(*self.env.config.ORDER_CREATION_INTERVAL)
 
             # Create new order object, save object and relevant info
             order = Order(order_id)
